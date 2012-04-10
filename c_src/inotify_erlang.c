@@ -15,14 +15,16 @@
 #define MSG_LEN (EVENT_SIZE + 16)
 
 /*********************** note_send_errno **********/
-int note_send_errno() {
+int note_send_errno() 
+{
   ei_x_buff  errmsg;
 
   if (ei_x_new_with_version(&errmsg) ||
       ei_x_encode_tuple_header(&errmsg, 2))
     return(-1);
   ei_x_encode_atom(&errmsg, "error");   /* element 1 */
-  switch (errno) {
+  switch (errno) 
+  {
   case EACCES:
     ei_x_encode_atom(&errmsg, "eacces");
     break;
@@ -185,22 +187,28 @@ int note_decode_mask(char *buf, int *index, ulong *maskout) {
   char mstr[100];
 
   ei_get_type(buf, index, &termtype, &size);
-  if (termtype == ERL_ATOM_EXT) {
+  if (termtype == ERL_ATOM_EXT) 
+  {
     if (ei_decode_atom(buf, index, mstr) < 0)
-	return(-1);
+      return(-1);
     
     if (note_decode_mask_atom(mstr, maskout) < 0) 
       return(-1);
-  } else if (termtype == ERL_LIST_EXT) {
-    if (ei_decode_list_header(buf, index, &arity) < 0) {
+  } 
+  else if (termtype == ERL_LIST_EXT) 
+  {
+    if (ei_decode_list_header(buf, index, &arity) < 0) 
+    {
+      return(-1);
+    }
+    
+    if (arity == 0) 
+    {    /* empty list */
       return(-1);
     }
 
-    if (arity == 0) {    /* empty list */
-      return(-1);
-    }
-
-    for(count = 0; count < arity; count++) {
+    for(count = 0; count < arity; count++) 
+    {
       ei_get_type(buf, index, &termtype, &size);
       if (termtype == ERL_ATOM_EXT) {
         if (ei_decode_atom(buf, index, mstr) < 0)
@@ -210,18 +218,22 @@ int note_decode_mask(char *buf, int *index, ulong *maskout) {
           return(-1);
       }
     }
-  } else {
+  } 
+  else 
+  {
     /* another type which is not of interest */
     return(-1);
   }
   return(0);
 }
 /*********************** note_setup_select ***********/
-int note_setup_select(note_t *note, fd_set *readfds) {
+int note_setup_select(note_t *note, fd_set *readfds) 
+{
   note_entry_t *cur;
   int maxfd = 0;
 
-  for(cur = note->ent; cur != NULL; cur = cur->next) {
+  for(cur = note->ent; cur != NULL; cur = cur->next) 
+  {
     FD_SET(cur->fd, readfds);
     if (cur->fd > maxfd)
       maxfd = cur->fd;
@@ -230,11 +242,13 @@ int note_setup_select(note_t *note, fd_set *readfds) {
 }
 
 /*********************** note_destroy ****************/
-void note_destroy(note_t *note) {
+void note_destroy(note_t *note) 
+{
   note_entry_t *cur, *prev;
 
   cur = note->ent;
-  while (cur != NULL) {
+  while (cur != NULL) 
+  {
     close(cur->fd);
     prev = cur;
     cur = cur->next;
@@ -247,11 +261,13 @@ void note_destroy(note_t *note) {
  *
  *
  */
-int note_read_send(int len, char *buf) {
+int note_read_send(int len, char *buf) 
+{
   int idx = 0;
   ei_x_buff result;
 
-  while (idx < len) {
+  while (idx < len) 
+  {
     struct inotify_event *event;
     event = (struct inotify_event *) &buf[idx];
     
@@ -261,7 +277,7 @@ int note_read_send(int len, char *buf) {
 	ei_x_encode_tuple_header(&result, 5)) return(-1);
     
     /*
-    fprintf(stderr,
+      fprintf(stderr,
             "inotify_erlang:note_read  len: %d idx: %d event %d %x %x %s\r\n",
 	    len, idx, event->wd, event->mask, event->cookie, event->name);
     */
@@ -270,12 +286,15 @@ int note_read_send(int len, char *buf) {
     ei_x_encode_ulong(&result, event->wd);                      /* element 2 */
     note_encode_mask(&result, event->mask);                     /* element 3 */
     ei_x_encode_ulong(&result, event->cookie);                  /* element 4 */
-    if ( 0 < event->len ) {
+    if ( 0 < event->len ) 
+    {
       ei_x_encode_string(&result, event->name);                 /* element 5 */
-    }else{
+    }
+    else
+    {
       ei_x_encode_string(&result, "");
     }
-
+    
     write_cmd(&result);
     ei_x_free(&result);
     idx += EVENT_SIZE + event->len;
@@ -288,13 +307,16 @@ int note_read_send(int len, char *buf) {
  *     EVENT_MSG, size, event
  *
  */
-int note_read(note_t *note, fd_set *readfds) {
+int note_read(note_t *note, fd_set *readfds) 
+{
   char  buf[BUF_LEN];
   int len, rc, fd = 0;
   note_entry_t *cur;
 
-  for(cur = note->ent; cur != NULL; cur = cur->next) {
-    if (FD_ISSET(cur->fd, readfds)) {
+  for(cur = note->ent; cur != NULL; cur = cur->next) 
+  {
+    if (FD_ISSET(cur->fd, readfds)) 
+    {
       fd = cur->fd;
 
       memset(buf, 0, BUF_LEN);
@@ -310,9 +332,12 @@ int note_read(note_t *note, fd_set *readfds) {
       /* FIXME: potential buffer over flow bug here */
       read(fd, buf, len);
 
-      if (len < 0) {
-	 perror("note_read read()");
-      } else if (len > 0) {
+      if (len < 0) 
+      {
+        perror("note_read read()");
+      } 
+      else if (len > 0) 
+      {
 	if (note_read_send(len, buf) < 0)
 	  return(-1);
       }
@@ -322,7 +347,8 @@ int note_read(note_t *note, fd_set *readfds) {
 }
 
 /*********************** note_list ****************/
-int note_list(note_t *note, char *buf, int *index) {
+int note_list(note_t *note, char *buf, int *index) 
+{
   note_entry_t *cur;
   ei_x_buff result;
 
@@ -331,10 +357,12 @@ int note_list(note_t *note, char *buf, int *index) {
       ei_x_encode_tuple_header(&result, 2)) return(-1);
   ei_x_encode_atom(&result, "ok");
 
-  for (cur = note->ent; cur != NULL; cur = cur->next) {
+  for (cur = note->ent; cur != NULL; cur = cur->next) 
+  {
     ei_x_encode_list_header(&result,1);
     ei_x_encode_ulong(&result, cur->fd);
-  }  ei_x_encode_empty_list(&result);
+  } ei_x_encode_empty_list(&result);
+
   write_cmd(&result);
   ei_x_free(&result);
   return(0);
@@ -348,16 +376,18 @@ int note_list(note_t *note, char *buf, int *index) {
  *    {ok, Fd}
  *    {error, Errno}
  */
-int note_open(note_t *note, char *buf, int *count) {
+int note_open(note_t *note, char *buf, int *count) 
+{
   uint32_t fd;
   note_entry_t *newent;
   ei_x_buff result;
-
+  
   /* Output buffer that will hold {ok, Result} or {error, Reason} */
   if (ei_x_new_with_version(&result) ||
       ei_x_encode_tuple_header(&result, 2)) return(-1);
 
-  if ((newent = (note_entry_t *)calloc(1,sizeof(note_entry_t))) == NULL) {
+  if ((newent = (note_entry_t *)calloc(1,sizeof(note_entry_t))) == NULL) 
+  {
     if (ei_x_encode_atom(&result, "error") ||
 	ei_x_encode_atom(&result, "alloc_failed"))
       return(-1);
@@ -366,7 +396,8 @@ int note_open(note_t *note, char *buf, int *count) {
     return(0);
   }
 
-  if ((fd = inotify_init()) < 0) {
+  if ((fd = inotify_init()) < 0) 
+  {
     free(newent);
     if (ei_x_encode_atom(&result, "error") ||
 	ei_x_encode_atom(&result, "inotify_init"))
@@ -380,24 +411,26 @@ int note_open(note_t *note, char *buf, int *count) {
   newent->next = note->ent;
   note->ent = newent;
 
-
   if (ei_x_encode_atom(&result, "ok") ||
       ei_x_encode_ulong(&result, fd)) return(-1);
-
+  
   write_cmd(&result);
   ei_x_free(&result);
   return(0);
 }
 /*********************** note_close ****************/
-int note_close(note_t *note, char *buf, int *count) {
+int note_close(note_t *note, char *buf, int *count) 
+{
   note_entry_t **curpp, *nextp;
   ulong fd;
   ei_x_buff result;
 
   if (ei_decode_ulong(buf, count, &fd)) return(-1);
 
-  for(curpp = &(note->ent); *curpp != NULL; curpp = &(*curpp)->next) {
-    if (fd == (*curpp)->fd) {
+  for(curpp = &(note->ent); *curpp != NULL; curpp = &(*curpp)->next) 
+  {
+    if (fd == (*curpp)->fd) 
+    {
       close(fd);
       nextp = (*curpp)->next;
       free(*curpp);
@@ -407,7 +440,7 @@ int note_close(note_t *note, char *buf, int *count) {
 	  ei_x_encode_tuple_header(&result, 2)) return(-1);
       if (ei_x_encode_atom(&result, "ok") ||
 	  ei_x_encode_ulong(&result, fd)) return(-1);
-
+      
       write_cmd(&result);
       ei_x_free(&result);
       return(0);
@@ -433,7 +466,8 @@ int note_close(note_t *note, char *buf, int *count) {
  *    {error, Errstr}
  *
  */
-int note_add(note_t *note, char *buf, int *index) {
+int note_add(note_t *note, char *buf, int *index) 
+{
   ulong fd, mask;
   int wd;
   char pathname[512];
@@ -442,12 +476,13 @@ int note_add(note_t *note, char *buf, int *index) {
   /* Output buffer that will hold {ok, Result} or {error, Reason} */
   if (ei_x_new_with_version(&result) ||
       ei_x_encode_tuple_header(&result, 2)) return(-1);
-
+  
   if (ei_decode_ulong(buf, index, &fd) ||
       ei_decode_string(buf, index, pathname)) return(-1);
 
   mask = 0;
-  if (note_decode_mask(buf, index, &mask) < 0) {
+  if (note_decode_mask(buf, index, &mask) < 0) 
+  {
     if (ei_x_encode_atom(&result, "error") ||
         ei_x_encode_atom(&result, "bad_mask"))
       return(-1);
@@ -456,10 +491,11 @@ int note_add(note_t *note, char *buf, int *index) {
     return(0);
   }
 
-  if ((wd = inotify_add_watch(fd, pathname, mask)) < 0) {
+  if ((wd = inotify_add_watch(fd, pathname, mask)) < 0) 
+  {
     return note_send_errno();
   }
-
+  
   if (ei_x_encode_atom(&result, "ok") ||
       ei_x_encode_ulong(&result, wd)) return(-1);
   write_cmd(&result);
@@ -475,7 +511,8 @@ int note_add(note_t *note, char *buf, int *index) {
  *   {ok,wd}
  *   {error, errno}
  */
-int note_remove(note_t *note, char *buf, int *index) {
+int note_remove(note_t *note, char *buf, int *index) 
+{
   ulong fd, wd;
   ei_x_buff result;
 
@@ -483,8 +520,9 @@ int note_remove(note_t *note, char *buf, int *index) {
       ei_decode_ulong(buf, index, &wd)) return(-1);
 
 
-  if (inotify_rm_watch(fd, wd) < 0) {
-  /* Output buffer that will hold {error, Reason} or {ok, Wd}*/
+  if (inotify_rm_watch(fd, wd) < 0) 
+  {
+    /* Output buffer that will hold {error, Reason} or {ok, Wd}*/
     return note_send_errno();
   }
 

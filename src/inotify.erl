@@ -189,19 +189,3 @@ take_first(F,[H|T]) ->
   try F(H)
   catch _:_ -> take_first(F,T)
   end.
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

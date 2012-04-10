@@ -22,7 +22,8 @@ int read_cmd(char *buf, int *size, int *curpos)
   int count;
   int desired;
 
-  if (*curpos < 2) {
+  if (*curpos < 2) 
+  {
     /* read header */
     count = read(0, buf + *curpos, 2 - *curpos);
 
@@ -41,7 +42,8 @@ int read_cmd(char *buf, int *size, int *curpos)
   desired = len - *curpos + 2;
 
   /* check buffer size and realloc if necessary */
-  if (len > *size) {
+  if (len > *size) 
+  {
     buf = (char *) realloc(buf, len);
     if (buf == NULL)
       return -1;
@@ -57,9 +59,10 @@ int read_cmd(char *buf, int *size, int *curpos)
   return(2);
 }
 
-int write_cmd(ei_x_buff *buff) {
+int write_cmd(ei_x_buff *buff) 
+{
   char li;
-
+  
   li = (buff->index >> 8) & 0xff; 
   write_exact(&li, 1);
   li = buff->index & 0xff;
@@ -68,10 +71,12 @@ int write_cmd(ei_x_buff *buff) {
   return write_exact(buff->buff, buff->index);
 }
 
-int write_exact(char *buf, int len) {
+int write_exact(char *buf, int len) 
+{
   int i, wrote = 0;
-
-  do {
+  
+  do 
+  {
     if ((i = write(1, buf+wrote, len-wrote)) <= 0)
       return(i);
     wrote += i;
