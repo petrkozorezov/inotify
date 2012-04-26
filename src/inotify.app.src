@@ -1,0 +1,14 @@
+{application, inotify,
+ [
+  {description, "Inotify"},
+  {vsn, "0.0.1"},
+  {modules, []},
+  {applications, [
+                  kernel,
+                  stdlib,
+                  sasl
+                 ]},
+  {mod, { inotify_app, []}},
+  {env, []}           
+]}.
+

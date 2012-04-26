@@ -17,7 +17,7 @@
 /*********************** note_send_errno **********/
 int note_send_errno() 
 {
-  ei_x_buff  errmsg;
+  ei_x_buff errmsg;
 
   if (ei_x_new_with_version(&errmsg) ||
       ei_x_encode_tuple_header(&errmsg, 2))
@@ -36,6 +36,9 @@ int note_send_errno()
     break;
   case EINVAL:
     ei_x_encode_atom(&errmsg, "einval");
+    break;
+  case ENOENT:
+    ei_x_encode_atom(&errmsg, "enoent");
     break;
   case ENOMEM:
     ei_x_encode_atom(&errmsg, "enomem");
@@ -68,7 +71,8 @@ note_t *note_init() {
 }
 
 /*********************** note_encode_mask ***********/
-void note_encode_mask(ei_x_buff *outp, ulong mask) {
+void note_encode_mask(ei_x_buff *outp, ulong mask) 
+{
   /* debugging: fprintf(stderr, "note_encode_mask %ld\r\n", mask); */
   if (mask & IN_ACCESS) {
     ei_x_encode_list_header(outp,1);
@@ -138,7 +142,8 @@ void note_encode_mask(ei_x_buff *outp, ulong mask) {
   ei_x_encode_empty_list(outp);
 };
 
-int note_decode_mask_atom(const char *atom, ulong *maskout) {
+int note_decode_mask_atom(const char *atom, ulong *maskout) 
+{
   if (!strcmp("all", atom)) {
     *maskout |= IN_ALL_EVENTS;
   } else if (!strcmp("access", atom)) {
@@ -309,7 +314,7 @@ int note_read_send(int len, char *buf)
  */
 int note_read(note_t *note, fd_set *readfds) 
 {
-  char  buf[BUF_LEN];
+  char buf[BUF_LEN];
   int len, rc, fd = 0;
   note_entry_t *cur;
 
@@ -459,7 +464,7 @@ int note_close(note_t *note, char *buf, int *count)
 
 /*********************** note_add ****************
  * buffer format is
- *    {ulong Fd, string  Pathname, ulong Mask}
+ *    {ulong Fd, string Pathname, ulong Mask}
  *
  * returns
  *    {ok, Wd}
@@ -508,7 +513,7 @@ int note_add(note_t *note, char *buf, int *index)
  *    {ulong fd, ulong wd}
  *
  * returns
- *   {ok,wd}
+ *   {ok, wd}
  *   {error, errno}
  */
 int note_remove(note_t *note, char *buf, int *index) 
