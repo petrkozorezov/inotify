@@ -27,6 +27,8 @@
 -define(PORT_TIMEOUT, 1000).
 -define(INOTIFY_BIN, "inotify").
 
+%% TODO: May be some how prevent from appearing anhandled_event, after we have unsubscribed
+
 -record(watch, {filename,
                 eventhandlers :: [inotify_handler()]
                }).
@@ -53,14 +55,14 @@ add_watch_impl(Filename, Mask, Callback, #state{port = Port,
     catch _:Error ->
             {reply, {error, Error}, State}
     end.
-    
+
 remove_watch(Filename) ->
     gen_server:call(?MODULE, {remove_watch, Filename}).
 
 remove_watch_impl(Filename, #state{port = Port, notify_instance = FD, watches = Watches} = State) ->
     try
         WD = search_for_watch(Filename, Watches),
-        sync_call_command(Port, {remove, FD, WD}),
+        {ok, _} = sync_call_command(Port, {remove, FD, WD}),
         Watches2 = dict:erase(WD, Watches),
         {reply, ok, State#state{watches = Watches2}}
     catch _:Error ->
@@ -89,7 +91,7 @@ get_data(WD, Event, #state{watches = Watches} = State) ->
                     log({callback_failed, Filename, ErrorType, Error})                        
             end;
         false ->
-            log('bla-bla-bla')
+            log({unhandle_event, Event})
     end,
     {noreply, State}.
 

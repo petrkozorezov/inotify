@@ -1,4 +1,5 @@
-REBAR_BIN=rebar
+REBAR_BIN=./rebar
+DIALYZER=dialyzer
 
 compile :
 	$(REBAR_BIN) compile
@@ -6,8 +7,8 @@ compile :
 clean : 
 	$(REBAR_BIN) clean
 
-dialyze : .build_plt
-	$(REBAR_BIN) dialyze | tee dialyze.log
+dialyze : compile .build_plt 
+	$(DIALYZER) --plt inotify.plt -r ebin/
 
 .build_plt :
-	$(REBAR_BIN) check-plt || $(REBAR_BIN) build-plt
+	$(DIALYZER) --check_plt --plt inotify.plt || $(DIALYZER) --add_to_plt -r ebin/ --output_plt inotify.plt
