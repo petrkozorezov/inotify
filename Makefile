@@ -7,7 +7,7 @@ compile :
 clean : 
 	$(REBAR_BIN) clean
 
-dialyze : compile .build_plt 
+dialyze : compile .build_plt
 	$(DIALYZER) --plt inotify.plt -r ebin/
 
 .build_plt :

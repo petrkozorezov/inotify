@@ -8,6 +8,7 @@
 #include <stdio.h>
 #include <ei.h>
 #include "inotify_erlang.h"
+#include "inotify_utils.h"
 #include "erl_comm.h"
 
 #define EVENT_SIZE (sizeof (struct inotify_event))
@@ -19,8 +20,7 @@ int note_send_errno()
 {
   ei_x_buff errmsg;
 
-  if (ei_x_new_with_version(&errmsg) ||
-      ei_x_encode_tuple_header(&errmsg, 2))
+  if (ei_x_new_with_version(&errmsg) || ei_x_encode_tuple_header(&errmsg, 2))
     return(-1);
   ei_x_encode_atom(&errmsg, "error");   /* element 1 */
   switch (errno) 
@@ -203,19 +203,16 @@ int note_decode_mask(char *buf, int *index, ulong *maskout) {
   else if (termtype == ERL_LIST_EXT) 
   {
     if (ei_decode_list_header(buf, index, &arity) < 0) 
-    {
       return(-1);
-    }
     
     if (arity == 0) 
-    {    /* empty list */
       return(-1);
-    }
 
     for(count = 0; count < arity; count++) 
     {
       ei_get_type(buf, index, &termtype, &size);
-      if (termtype == ERL_ATOM_EXT) {
+      if (termtype == ERL_ATOM_EXT) 
+      {
         if (ei_decode_atom(buf, index, mstr) < 0)
           return(-1);
         
@@ -224,11 +221,9 @@ int note_decode_mask(char *buf, int *index, ulong *maskout) {
       }
     }
   } 
-  else 
-  {
-    /* another type which is not of interest */
+  else /* another type which is not of interest */
     return(-1);
-  }
+
   return(0);
 }
 /*********************** note_setup_select ***********/
@@ -278,8 +273,8 @@ int note_read_send(int len, char *buf)
     
     /* encoding msg */
     /* Output buffer that will hold {event, Wd, Mask, Cookie, Name} */
-    if (ei_x_new_with_version(&result) ||
-	ei_x_encode_tuple_header(&result, 5)) return(-1);
+    if (ei_x_new_with_version(&result) || ei_x_encode_tuple_header(&result, 5)) 
+      return(-1);
     
     /*
       fprintf(stderr,
@@ -292,13 +287,9 @@ int note_read_send(int len, char *buf)
     note_encode_mask(&result, event->mask);                     /* element 3 */
     ei_x_encode_ulong(&result, event->cookie);                  /* element 4 */
     if ( 0 < event->len ) 
-    {
       ei_x_encode_string(&result, event->name);                 /* element 5 */
-    }
     else
-    {
       ei_x_encode_string(&result, "");
-    }
     
     write_cmd(&result);
     ei_x_free(&result);
@@ -358,15 +349,16 @@ int note_list(note_t *note, char *buf, int *index)
   ei_x_buff result;
 
   /* Output buffer that will hold {ok, Result} or {error, Reason} */
-  if (ei_x_new_with_version(&result) ||
-      ei_x_encode_tuple_header(&result, 2)) return(-1);
+  if (ei_x_new_with_version(&result) || ei_x_encode_tuple_header(&result, 2)) 
+    return(-1);
   ei_x_encode_atom(&result, "ok");
 
   for (cur = note->ent; cur != NULL; cur = cur->next) 
   {
     ei_x_encode_list_header(&result,1);
     ei_x_encode_ulong(&result, cur->fd);
-  } ei_x_encode_empty_list(&result);
+  } 
+  ei_x_encode_empty_list(&result);
 
   write_cmd(&result);
   ei_x_free(&result);
@@ -385,52 +377,30 @@ int note_open(note_t *note, char *buf, int *count)
 {
   uint32_t fd;
   note_entry_t *newent;
-  ei_x_buff result;
   
-  /* Output buffer that will hold {ok, Result} or {error, Reason} */
-  if (ei_x_new_with_version(&result) ||
-      ei_x_encode_tuple_header(&result, 2)) return(-1);
-
   if ((newent = (note_entry_t *)calloc(1,sizeof(note_entry_t))) == NULL) 
-  {
-    if (ei_x_encode_atom(&result, "error") ||
-	ei_x_encode_atom(&result, "alloc_failed"))
-      return(-1);
-    write_cmd(&result);
-    ei_x_free(&result);
-    return(0);
-  }
+    return write_tuple("error", "alloc_failed");
 
   if ((fd = inotify_init()) < 0) 
   {
     free(newent);
-    if (ei_x_encode_atom(&result, "error") ||
-	ei_x_encode_atom(&result, "inotify_init"))
-      return(-1);
-    write_cmd(&result);
-    ei_x_free(&result);
-    return(0);
+    return write_tuple("error", "inotify_init");
   }
 
   newent->fd = fd;
   newent->next = note->ent;
   note->ent = newent;
 
-  if (ei_x_encode_atom(&result, "ok") ||
-      ei_x_encode_ulong(&result, fd)) return(-1);
-  
-  write_cmd(&result);
-  ei_x_free(&result);
-  return(0);
+  return write_tupleU("ok", fd);
 }
 /*********************** note_close ****************/
 int note_close(note_t *note, char *buf, int *count) 
 {
   note_entry_t **curpp, *nextp;
   ulong fd;
-  ei_x_buff result;
 
-  if (ei_decode_ulong(buf, count, &fd)) return(-1);
+  if (ei_decode_ulong(buf, count, &fd)) 
+    return(-1);
 
   for(curpp = &(note->ent); *curpp != NULL; curpp = &(*curpp)->next) 
   {
@@ -440,26 +410,13 @@ int note_close(note_t *note, char *buf, int *count)
       nextp = (*curpp)->next;
       free(*curpp);
       (*curpp) = nextp;
+
       /* Output buffer that will hold {ok, Result} or {error, Reason} */
-      if (ei_x_new_with_version(&result) ||
-	  ei_x_encode_tuple_header(&result, 2)) return(-1);
-      if (ei_x_encode_atom(&result, "ok") ||
-	  ei_x_encode_ulong(&result, fd)) return(-1);
-      
-      write_cmd(&result);
-      ei_x_free(&result);
-      return(0);
+      return write_tupleU("ok", fd);
     }
   }
 
-  if (ei_x_new_with_version(&result) ||
-      ei_x_encode_tuple_header(&result, 2)) return(-1);
-  if (ei_x_encode_atom(&result, "error") ||
-      ei_x_encode_atom(&result, "unknown")) return(-1);
-
-  write_cmd(&result);
-  ei_x_free(&result);
-  return(0);
+  return write_tuple("error", "unknown");
 }
 
 /*********************** note_add ****************
@@ -476,36 +433,18 @@ int note_add(note_t *note, char *buf, int *index)
   ulong fd, mask;
   int wd;
   char pathname[512];
-  ei_x_buff result;
 
-  /* Output buffer that will hold {ok, Result} or {error, Reason} */
-  if (ei_x_new_with_version(&result) ||
-      ei_x_encode_tuple_header(&result, 2)) return(-1);
+  if (ei_decode_ulong(buf, index, &fd) || ei_decode_string(buf, index, pathname)) 
+    return(-1);
   
-  if (ei_decode_ulong(buf, index, &fd) ||
-      ei_decode_string(buf, index, pathname)) return(-1);
-
   mask = 0;
   if (note_decode_mask(buf, index, &mask) < 0) 
-  {
-    if (ei_x_encode_atom(&result, "error") ||
-        ei_x_encode_atom(&result, "bad_mask"))
-      return(-1);
-    write_cmd(&result);
-    ei_x_free(&result);
-    return(0);
-  }
-
-  if ((wd = inotify_add_watch(fd, pathname, mask)) < 0) 
-  {
-    return note_send_errno();
-  }
+    return write_tuple("error", "bad_mask");
   
-  if (ei_x_encode_atom(&result, "ok") ||
-      ei_x_encode_ulong(&result, wd)) return(-1);
-  write_cmd(&result);
-  ei_x_free(&result);
-  return(0);
+  if ((wd = inotify_add_watch(fd, pathname, mask)) < 0) 
+    return note_send_errno();
+
+  return write_tupleU("ok", wd);
 }
 
 /*********************** note_remove ****************
@@ -519,23 +458,13 @@ int note_add(note_t *note, char *buf, int *index)
 int note_remove(note_t *note, char *buf, int *index) 
 {
   ulong fd, wd;
-  ei_x_buff result;
-
-  if (ei_decode_ulong(buf, index, &fd) ||
-      ei_decode_ulong(buf, index, &wd)) return(-1);
-
-
+  
+  // FIXME: In case we have bad formed command args return {error, invalid_args} ?
+  if (ei_decode_ulong(buf, index, &fd) || ei_decode_ulong(buf, index, &wd)) 
+    return(-1);
+  
   if (inotify_rm_watch(fd, wd) < 0) 
-  {
-    /* Output buffer that will hold {error, Reason} or {ok, Wd}*/
     return note_send_errno();
-  }
 
-  if (ei_x_new_with_version(&result) ||
-      ei_x_encode_tuple_header(&result, 2)) return(-1);
-  if (ei_x_encode_atom(&result, "ok") ||
-      ei_x_encode_ulong(&result, wd)) return(-1);
-  write_cmd(&result);
-  ei_x_free(&result);
-  return(0);
+  return write_tupleU("ok", wd);
 }

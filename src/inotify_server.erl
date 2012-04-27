@@ -27,24 +27,33 @@
 -define(PORT_TIMEOUT, 1000).
 -define(INOTIFY_BIN, "inotify").
 
-%% TODO: May be some how prevent from appearing anhandled_event, after we have unsubscribed
+-export_type([inotify_event/0,
+              inotify_handler/0
+             ]).
 
--record(watch, {filename,
-                eventhandlers :: [inotify_handler()]
-               }).
+%% TODO: May be some how prevent from appearing anhandled_event, after we have unsubscribed
 
 -record(state, {port,
                 notify_instance,
                 watches          %% key: WD | value: watch
                }).
+-type state() :: #state{}.
 
 start_link() ->
     gen_server:start_link({local, ?SERVER}, ?MODULE, [], []).
 
--spec add_watch(string(), [inotify_mask()], function()) -> ok | {error, any()}.
-add_watch(Filename, Mask, Callback) ->
-    gen_server:call(?MODULE, {add_watch, Filename, Mask, Callback}).
+%% @doc Be carefull natural inotify either creates a new watch item, or modifies an existing watch!
+-spec add_watch(string(), inotify_mask() | [inotify_mask()], inotify_handler() | {atom(), atom()} | pid()) -> ok | {error, any()}.
+add_watch(Filename, Mask, Callback) when is_function(Callback) ->
+    gen_server:call(?MODULE, {add_watch, Filename, Mask, Callback});
+add_watch(Filename, Mask, Callback) when is_pid(Callback) ->
+    Fun = fun(Event) -> Callback ! {self(), Event} end,
+    add_watch(Filename, Mask, Fun);
+add_watch(Filename, Mask, {M,F}) when is_atom(M) and is_atom(F) ->
+    Fun = fun(Event) -> M:F(Event) end,                  
+    add_watch(Filename, Mask, Fun).
 
+-spec add_watch_impl(string(), [inotify_mask()], inotify_handler(), state()) -> {reply, any(), state()}. 
 add_watch_impl(Filename, Mask, Callback, #state{port = Port,
                                                 notify_instance = FD,
                                                 watches = Watches} = State) ->
@@ -61,10 +70,14 @@ remove_watch(Filename) ->
 
 remove_watch_impl(Filename, #state{port = Port, notify_instance = FD, watches = Watches} = State) ->
     try
-        WD = search_for_watch(Filename, Watches),
-        {ok, _} = sync_call_command(Port, {remove, FD, WD}),
-        Watches2 = dict:erase(WD, Watches),
-        {reply, ok, State#state{watches = Watches2}}
+        case search_for_watch(Filename, Watches) of
+            undefined ->
+                {reply, {error, not_watched}, State};
+            WD ->
+                {ok, _} = sync_call_command(Port, {remove, FD, WD}),
+                Watches2 = dict:erase(WD, Watches),
+                {reply, ok, State#state{watches = Watches2}}
+        end
     catch _:Error ->
             {reply, {error, Error}, State}
     end.
@@ -175,7 +188,7 @@ sync_call_command(Port, Msg) ->
                 binary_to_term(Data)
         after ?PORT_TIMEOUT -> 
                 throw(port_timeout)
-    end
+        end
   catch 
     _:Error -> 
       throw({port_failed, {Error, Port, Msg}})

@@ -32,3 +32,6 @@
 -type inotify_event() :: #inotify_event{}.
 -type inotify_handler() :: fun((inotify_event()) -> any()).                      
 
+-record(watch, {filename,
+                eventhandlers :: inotify_handler()
+               }).
