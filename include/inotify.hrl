@@ -5,7 +5,7 @@
 %% inotify masks
 %% @end
 
--type inotify_mask() :: all 
+-type inotify_mask_el() :: all 
                       | access 
                       | attrib
                       | close_write
@@ -23,15 +23,26 @@
                       | dont_follow
                       | mask_add
                       | onlydir.
+-type inotify_mask() :: inotify_mask_el() | [inotify_mask_el()].
 
 -record(inotify_event, {filename :: string(),
-                        mask :: [inotify_mask()],
+                        mask :: inotify_mask(),
                         cookie :: integer(),
                         name :: string()}).
 
 -type inotify_event() :: #inotify_event{}.
 -type inotify_handler() :: fun((inotify_event()) -> any()).                      
 
--record(watch, {filename,
-                eventhandlers :: inotify_handler()
+-record(watch, {filename :: string(),
+                eventhandler :: inotify_handler()
                }).
+
+-type iwatch() :: #watch{}.
+
+-record(state, {port :: port(),
+                notify_instance :: non_neg_integer(),
+                watches :: any()
+               }).
+
+-type istate() :: #state{}.
+

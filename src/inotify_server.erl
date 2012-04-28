@@ -5,12 +5,13 @@
 
 -module(inotify_server).
 -behaviour(gen_server).
+-compile({parse_transform, sheriff}).
 
 %% API
 -export([start_link/0,
          add_watch/3,
          remove_watch/1,
-         state/0
+         get_state/0
         ]).
 
 %% gen_server callbacks
@@ -31,21 +32,18 @@
               inotify_handler/0
              ]).
 
-%% TODO: May be some how prevent from appearing anhandled_event, after we have unsubscribed
-
--record(state, {port,
-                notify_instance,
-                watches          %% key: WD | value: watch
-               }).
--type state() :: #state{}.
-
 start_link() ->
     gen_server:start_link({local, ?SERVER}, ?MODULE, [], []).
 
 %% @doc Be carefull natural inotify either creates a new watch item, or modifies an existing watch!
 -spec add_watch(string(), inotify_mask() | [inotify_mask()], inotify_handler() | {atom(), atom()} | pid()) -> ok | {error, any()}.
 add_watch(Filename, Mask, Callback) when is_function(Callback) ->
-    gen_server:call(?MODULE, {add_watch, Filename, Mask, Callback});
+    case sheriff:check(Mask, inotify_mask) of
+        true ->
+            gen_server:call(?MODULE, {add_watch, Filename, Mask, Callback});
+        false ->
+            {error, badmask}
+    end;        
 add_watch(Filename, Mask, Callback) when is_pid(Callback) ->
     Fun = fun(Event) -> Callback ! {self(), Event} end,
     add_watch(Filename, Mask, Fun);
@@ -53,13 +51,13 @@ add_watch(Filename, Mask, {M,F}) when is_atom(M) and is_atom(F) ->
     Fun = fun(Event) -> M:F(Event) end,                  
     add_watch(Filename, Mask, Fun).
 
--spec add_watch_impl(string(), [inotify_mask()], inotify_handler(), state()) -> {reply, any(), state()}. 
+-spec add_watch_impl(string(), [inotify_mask()], inotify_handler(), any()) -> {reply, any(), any()}. 
 add_watch_impl(Filename, Mask, Callback, #state{port = Port,
                                                 notify_instance = FD,
                                                 watches = Watches} = State) ->
     try
         {ok, WD} = sync_call_command(Port, {add, FD, Filename, Mask}),
-        Watches2 = dict:store(WD, #watch{filename = Filename, eventhandlers = Callback}, Watches),
+        Watches2 = dict:store(WD, #watch{filename = Filename, eventhandler = Callback}, Watches),
         {reply, {ok, WD}, State#state{watches = Watches2}}
     catch _:Error ->
             {reply, {error, Error}, State}
@@ -82,10 +80,10 @@ remove_watch_impl(Filename, #state{port = Port, notify_instance = FD, watches = 
             {reply, {error, Error}, State}
     end.
 
-state() ->
+get_state() ->
     gen_server:call(?MODULE, state).
 
-state(State) ->
+get_state(State) ->
     {reply, State, State}.
 
 get_data({event, WD, Mask, Cookie, Name}, #state{watches = Watches} = State) ->
@@ -98,7 +96,7 @@ get_data({event, WD, Mask, Cookie, Name}, #state{watches = Watches} = State) ->
 get_data(WD, Event, #state{watches = Watches} = State) ->
     case dict:is_key(WD, Watches) of
         true ->
-            #watch{filename = Filename, eventhandlers = EventHandler} = dict:fetch(WD, Watches),
+            #watch{filename = Filename, eventhandler = EventHandler} = dict:fetch(WD, Watches),
             try apply(EventHandler, [Event])
             catch ErrorType:Error ->
                     log({callback_failed, Filename, ErrorType, Error})                        
@@ -147,7 +145,7 @@ handle_call({remove_watch, Filename}, _From, State) ->
     remove_watch_impl(Filename, State);
 
 handle_call(state, _From, State) ->
-    state(State);
+    get_state(State);
 
 handle_call(_Request, _From, State) ->
     Reply = ok,
@@ -193,5 +191,3 @@ sync_call_command(Port, Msg) ->
     _:Error -> 
       throw({port_failed, {Error, Port, Msg}})
   end.
-
-%% inotify_server:add_watch("/tmp", [all], fun(M) -> io:format("~p~n", [M]) end).

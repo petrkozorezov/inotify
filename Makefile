@@ -2,6 +2,7 @@ REBAR_BIN=./rebar
 DIALYZER=dialyzer
 
 compile :
+	$(REBAR_BIN) get-deps
 	$(REBAR_BIN) compile
 
 clean : 
