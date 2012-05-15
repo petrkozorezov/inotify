@@ -18,6 +18,7 @@ start_link() ->
 
 init([]) ->
     Processes = [
+                 ?CHILD(inotify_watch_sup, supervisor),
                  ?CHILD(inotify_server, worker)
                 ],
     

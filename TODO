@@ -1,1 +1,13 @@
-TODO: May be some how prevent from appearing anhandled_event, after we have unsubscribed
+TODO: 
+      Handle error from inotify_init such as:
+            EINVAL (inotify_init1()) An invalid value was specified in flags.
+
+            EMFILE The user limit on the total number of inotify instances has been
+              reached.
+
+            ENFILE The system limit on the total number of file descriptors has been
+              reached.
+
+            ENOMEM Insufficient kernel memory is available.
+
+      Recursive watch

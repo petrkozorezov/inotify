@@ -6,43 +6,48 @@
 %% @end
 
 -type inotify_mask_el() :: all 
-                      | access 
-                      | attrib
-                      | close_write
-                      | close_nowrite
-                      | close
-                      | create
-                      | delete
-                      | delete_self
-                      | modify
-                      | move_self
-                      | moved_from
-                      | moved_to
-                      | move
-                      | open
-                      | dont_follow
-                      | mask_add
-                      | onlydir.
+                         | access 
+                         | attrib
+                         | close_write
+                         | close_nowrite
+                         | close
+                         | create
+                         | delete
+                         | delete_self
+                         | modify
+                         | move_self
+                         | moved_from
+                         | moved_to
+                         | move
+                         | open
+                         | dont_follow
+                         | mask_add
+                         | onlydir.
 -type inotify_mask() :: inotify_mask_el() | [inotify_mask_el()].
 
--record(inotify_event, {filename :: string(),
-                        mask :: inotify_mask(),
-                        cookie :: integer(),
-                        name :: string()}).
-
+-record(inotify_event, { filename :: string(),
+                         mask :: inotify_mask(),
+                         cookie :: integer(),
+                         name :: string()
+                       }).
 -type inotify_event() :: #inotify_event{}.
--type inotify_handler() :: fun((inotify_event()) -> any()).                      
+-type inotify_handler() :: fun((pid(), inotify_event()) -> any()).                      
 
--record(watch, {filename :: string(),
-                eventhandler :: inotify_handler()
+-type iwatch_id() :: reference().
+-type inotify_id() :: {non_neg_integer(), non_neg_integer()}. 
+
+-record(watch, { handler :: pid(),
+                 mon :: reference(),
+                 inotify_id :: iwatch_id(),
+                 filename :: string(),
+                 mask :: inotify_mask()
                }).
 
 -type iwatch() :: #watch{}.
 
--record(state, {port :: port(),
-                notify_instance :: non_neg_integer(),
-                watches :: any()
+-record(state, { port :: port(),
+                 mq :: orddict:new(),
+                 table :: atom()   %%  iwatch
                }).
 
 -type istate() :: #state{}.
-

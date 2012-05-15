@@ -261,7 +261,7 @@ void note_destroy(note_t *note)
  *
  *
  */
-int note_read_send(int len, char *buf) 
+int note_read_send(int fd, int len, char *buf) 
 {
   int idx = 0;
   ei_x_buff result;
@@ -272,8 +272,8 @@ int note_read_send(int len, char *buf)
     event = (struct inotify_event *) &buf[idx];
     
     /* encoding msg */
-    /* Output buffer that will hold {event, Wd, Mask, Cookie, Name} */
-    if (ei_x_new_with_version(&result) || ei_x_encode_tuple_header(&result, 5)) 
+    /* Output buffer that will hold {event, FD, Wd, Mask, Cookie, Name} */
+    if (ei_x_new_with_version(&result) || ei_x_encode_tuple_header(&result, 6)) 
       return(-1);
     
     /*
@@ -283,11 +283,12 @@ int note_read_send(int len, char *buf)
     */
 
     ei_x_encode_atom(&result, "event");                         /* element 1 */
-    ei_x_encode_ulong(&result, event->wd);                      /* element 2 */
-    note_encode_mask(&result, event->mask);                     /* element 3 */
-    ei_x_encode_ulong(&result, event->cookie);                  /* element 4 */
+    ei_x_encode_ulong(&result, fd);                             /* element 2 */
+    ei_x_encode_ulong(&result, event->wd);                      /* element 3 */
+    note_encode_mask(&result, event->mask);                     /* element 4 */
+    ei_x_encode_ulong(&result, event->cookie);                  /* element 5 */
     if ( 0 < event->len ) 
-      ei_x_encode_string(&result, event->name);                 /* element 5 */
+      ei_x_encode_string(&result, event->name);                 /* element 6 */
     else
       ei_x_encode_string(&result, "");
     
@@ -334,7 +335,7 @@ int note_read(note_t *note, fd_set *readfds)
       } 
       else if (len > 0) 
       {
-	if (note_read_send(len, buf) < 0)
+	if (note_read_send(fd, len, buf) < 0)
 	  return(-1);
       }
     }
