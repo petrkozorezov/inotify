@@ -23,8 +23,6 @@ start_link(Options) ->
     gen_server:start_link(?MODULE, Options, []).
 
 init(Options) ->
-    io:format("Options: ~p~n", [Options]),
-    
     Server = proplists:get_value(server, Options),
     Callback = case proplists:get_value(callback, Options) of
                    undefined ->
@@ -32,9 +30,9 @@ init(Options) ->
                    Pid when is_pid(Pid) ->
                        fun(Event) -> Pid ! {self(), Event} end;
                    Function when is_function(Function) ->
-                       fun(Event) -> Function(Event) end;
+                       fun(Event) -> Function(self(), Event) end;
                    {M,F} when is_atom(M) and is_atom(F) ->
-                       fun(Event) -> erlang:apply(M, F, [Event]) end
+                       fun(Event) -> erlang:apply(M, F, [self(), Event]) end
                end,
     {ok, #state{ server = Server,
                  handle = Callback }

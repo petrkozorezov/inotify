@@ -7,7 +7,7 @@
 #include "inotify_erlang.h"
 #include "erl_comm.h"
 
-#define BUFFER_SIZE 100
+#define BUFFER_SIZE 1000
 
 int setup_select(note_t *nlist, fd_set *readfds) 
 {
@@ -106,7 +106,11 @@ int main()
         
       if (result == 0) 
       {
-        exit(1);
+        exit(11);
+      } 
+      else if (result == -3) 
+      {
+        exit(12);
       } 
       else if (result < 0) 
       {
@@ -117,15 +121,15 @@ int main()
       } 
       else 
       {
-        /* must add two(2) to inbuf pointer to skip message length header */
-        if (ei_decode_version(inbuf+2, &index, &version) ||
-            ei_decode_tuple_header(inbuf+2, &index, &arity) ||
-            ei_decode_atom(inbuf+2, &index, command)) 
+        /* must add two(4) to inbuf pointer to skip message length header */
+        if (ei_decode_version(inbuf+4, &index, &version) ||
+            ei_decode_tuple_header(inbuf+4, &index, &arity) ||
+            ei_decode_atom(inbuf+4, &index, command)) 
         {
           exit(4);
         }
               
-        process_command(command, inbuf+2, &index, nlist);
+        process_command(command, inbuf+4, &index, nlist);
           
         /* reset position of inbuf */
         cmdpos = 0;

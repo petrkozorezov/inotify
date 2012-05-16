@@ -25,21 +25,24 @@ int read_cmd(char *buf, int *size, int *curpos)
   if (*curpos < 2) 
   {
     /* read header */
-    count = read(0, buf + *curpos, 2 - *curpos);
+    count = read(0, buf + *curpos, 4 - *curpos);
 
     if (count <= 0)
       return(count); /* Error or fd is closed */
     
     *curpos += count;
-    if (*curpos < 2)
+    if (*curpos < 4)
       return(1);
   }
   /* calculate the total message length and
    * the desired amount to read taking into account
    * the ammount already read
    */
-  len = (buf[0] << 8) | buf[1];
-  desired = len - *curpos + 2;
+  len = ((( (unsigned char) buf[0] << 24)
+         |( (unsigned char) buf[1] << 16))
+         |( (unsigned char) buf[2] << 8))
+         |  (unsigned char) buf[3];
+  desired = len - *curpos + 4;
 
   /* check buffer size and realloc if necessary */
   if (len > *size) 
@@ -53,7 +56,7 @@ int read_cmd(char *buf, int *size, int *curpos)
   /* read message body */
   count = read(0, buf + *curpos, desired);
   if (count <= 0)
-    return(0);
+    return(-3);
 
   *curpos += count;
   return(2);
@@ -63,9 +66,13 @@ int write_cmd(ei_x_buff *buff)
 {
   char li;
   
+  li = (buff->index >> 24) & 0xff; 
+  write_exact(&li, 1);
+  li = (buff->index >> 16) & 0xff; 
+  write_exact(&li, 1);
   li = (buff->index >> 8) & 0xff; 
   write_exact(&li, 1);
-  li = buff->index & 0xff;
+  li = buff->index & 0xff; 
   write_exact(&li, 1);
 
   return write_exact(buff->buff, buff->index);

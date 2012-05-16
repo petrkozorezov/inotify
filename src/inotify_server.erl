@@ -180,7 +180,7 @@ inotify_bin() ->
 %%%===================================================================
 
 init([]) ->
-    Port = erlang:open_port({spawn, inotify_bin()}, [{packet, 2}, binary, exit_status]),
+    Port = erlang:open_port({spawn, inotify_bin()}, [{packet, 4}, binary, exit_status]),
     Table = ets:new(?INOTIFY_ETS, [named_table, set, protected, {keypos,2}]),
 
     {ok, #state{port=Port, mq=[], table=Table}}.
@@ -200,10 +200,10 @@ handle_cast(_Msg, State) ->
 handle_info({Port, {data, Msg}}, #state{port = Port} = State) ->
     get_data(binary_to_term(Msg), State);
 
-handle_info({Port, {exit_status, Status}}, #state{port = Port}) ->
-    %%TODO Do we need to restart port here?
-    log({exit_status, Status}),
-    exit({exit_status, Status});
+handle_info({Port, {exit_status, Status}}, #state{port = Port} = State) ->
+    %% TODO Do we need to restart port here?
+    log({port_terminated, exit_status, Status}),
+    {stop, {port_terminated, exit_status, Status}, State#state{port = undefined}};
 
 handle_info({'DOWN', MonitorRef, process, _Pid, _Info}, State) ->
     case ets:match_object(?INOTIFY_ETS, #watch{mon=MonitorRef, _='_'}) of
@@ -221,8 +221,14 @@ handle_info(_Info, State) ->
 terminate(_Reason, #state{port=Port, mq=MQ} = _State) ->
     [remove_from_tree(ID) || ID <- ets:match(?INOTIFY_ETS,#watch{handler='$1', _='_'})],
     ets:delete(?INOTIFY_ETS),
-    [close_instance(Port, FD) || {FD, _} <- MQ],
-    erlang:port_close(Port),
+
+    case Port of
+        undefined ->
+            ok;
+        _ ->
+            [close_instance(Port, FD) || {FD, _} <- MQ],
+            erlang:port_close(Port)
+    end,
     ok.
 
 code_change(_OldVsn, State, _Extra) ->
