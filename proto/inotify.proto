@@ -1,0 +1,81 @@
+enum CommandType { 
+        open = 1; 
+        close = 2; 
+        add = 3; 
+        demove = 4;
+    }
+
+enum ErrorType {
+        eacces = 0;
+        ebadf = 1;
+        efault = 2;
+        einval = 3;
+        enoent = 4;
+        enomem = 5;
+        enospc = 6;
+        enotty = 7;
+        unknown_errno = 8;
+    }      
+
+enum Mask { all = 0;
+              access = 1;
+              attrib = 2;
+              close_write = 3;
+              close_nowrite = 4;
+              close = 5;
+              create = 6;
+              delete = 7;
+              delete_self = 8;
+              modify = 9;
+              move_self = 10;
+              moved_from = 11;
+              moved_to = 12;
+              move = 13;
+              open = 14;
+              dont_follow = 15;
+              mask_add = 16;
+              onlydir = 17;
+    }
+
+message CommandRequest {
+        required CommandType type = 1;
+        optional bytes data = 3;
+}
+
+message OpenCommand{
+    required int32 fd = 1 [default = 0];
+}
+
+message CloseCommand {
+    required int32 fd = 1;
+}
+
+message AddCommand {
+    required int32  fd = 1;
+    required string filename = 2;
+    repeated Mask mask = 3;
+}
+
+message RemoveCommand {
+   required int32 fd = 1;
+   required int32 wd = 2;
+}
+
+message NotifyEvent {
+   required string filename = 1;
+   repeated Mask mask = 2;
+   optional int32 cookie = 3;
+   optional string name = 4;
+}
+
+enum Result {
+     ok = 1;
+     error = 2;
+}
+
+message CommandResponse{
+     required CommandType type = 1;
+     required Result result = 2;
+     optional int32 id = 3;
+     optional ErrorType error = 4;
+}
