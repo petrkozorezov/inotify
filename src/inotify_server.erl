@@ -8,7 +8,11 @@
 -compile({parse_transform, sheriff}).
 
 %% API
--export([start_link/0, add_watch/3, add_watch_link/3, remove_watch/1 ]).
+-export([start_link/0,
+         add_watch/3,
+         add_watch_link/3,
+         remove_watch/1]).
+
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
 
@@ -27,8 +31,9 @@ start_link() ->
     gen_server:start_link({local, ?SERVER}, ?MODULE, [], []).
 
 %% @doc Add inotify watch on the file or dir. If file is already whatched with inotify instance creates new
-%% Callback can be fun, tuple of atoms {Module,Function} or a pid(). 
--spec add_watch(string(), inotify_mask(), inotify_handler() | {atom(), atom()} | pid()) ->
+%% Callback can be fun, tuple of atoms {Module,Function} or a pid(). If pid is used as a callback
+%% inotify_watch_handler starts to monitor this pid.
+-spec add_watch(file:filename(), inotify_mask(), inotify_handler() | {atom(), atom()} | pid()) ->
                        {ok, pid()} | {error, any()}.
 add_watch(Filename, Mask, Callback) ->
     case sheriff:check(Mask, inotify_mask) of
@@ -39,7 +44,7 @@ add_watch(Filename, Mask, Callback) ->
     end.     
 
 %% @doc Similiar to add_watch but adds linking with watching process.
--spec add_watch_link(string(), inotify_mask(), inotify_handler() | {atom(), atom()} | pid()) ->
+-spec add_watch_link(file:filename(), inotify_mask(), inotify_handler() | {atom(), atom()} | pid()) ->
                        {ok, pid()} | {error, any()}.
 add_watch_link(Filename, Mask, Callback) ->
     case add_watch(Filename, Mask, Callback) of
@@ -50,7 +55,7 @@ add_watch_link(Filename, Mask, Callback) ->
             {error, Any}
     end.
 
--spec add_watch_impl(string(), inotify_mask(), inotify_handler(), istate()) -> {reply, any(), istate()}. 
+-spec add_watch_impl(file:filename(), inotify_mask(), inotify_handler(), istate()) -> {reply, any(), istate()}. 
 add_watch_impl(Filename, Mask, Callback, #state{port=Port, mq=MQ} = State) ->
     try
         {MQ1, FD} = handle_free_instance(Filename, MQ, Port),
@@ -77,8 +82,8 @@ add_watch_impl(Filename, Mask, Callback, #state{port=Port, mq=MQ} = State) ->
 
 add_handler(Id, Callback) ->
     Options = [{callback, Callback}, {server, self()}],
-    ChildSpec = { Id, {inotify_watch_handler, start_link, [Options]},
-                  temporary, ?SHUTDOWN_TIMEOUT, worker, [inotify_watch_handler]
+    ChildSpec = {Id, {inotify_watch_handler, start_link, [Options]},
+                 temporary, ?SHUTDOWN_TIMEOUT, worker, [inotify_watch_handler]
                 },
     {ok, Pid} = supervisor:start_child(inotify_watch_sup, ChildSpec),
     Pid.
@@ -152,8 +157,7 @@ remove_from_tree(Id) ->
     supervisor:terminate_child(Supervisor, Id),
     supervisor:delete_child(Supervisor, Id).
 
-get_data({event,FD, WD, Mask, Cookie, Name}, State) ->
-    %% Ищем процесс обслуживающий эту подписку и отправляем ему сообщение
+get_data({event,FD, WD, Mask, Cookie, Name}) ->
     case ets:match_object(?INOTIFY_ETS, #watch{inotify_id = {FD,WD}, _='_'}) of
         [] ->
             ok;
@@ -161,8 +165,7 @@ get_data({event,FD, WD, Mask, Cookie, Name}, State) ->
             Event = #inotify_event{filename=Record#watch.filename, mask=Mask, cookie=Cookie, name=Name},
             Handler = search_child(inotify_watch_sup, {FD,WD}),
             gen_server:cast(Handler, {self(), Event})
-    end,
-    {noreply, State}.
+    end.
 
 search_child(Supervisor, ChildId) ->
     case lists:keysearch(ChildId, 1, supervisor:which_children(Supervisor)) of
@@ -198,15 +201,16 @@ handle_cast(_Msg, State) ->
     {noreply, State}.
 
 handle_info({Port, {data, Msg}}, #state{port = Port} = State) ->
-    get_data(binary_to_term(Msg), State);
+    get_data(binary_to_term(Msg)),
+    {noreply, State};
 
 handle_info({Port, {exit_status, Status}}, #state{port = Port} = State) ->
     %% TODO Do we need to restart port here?
     log({port_terminated, exit_status, Status}),
     {stop, {port_terminated, exit_status, Status}, State#state{port = undefined}};
 
-handle_info({'DOWN', MonitorRef, process, _Pid, _Info}, State) ->
-    case ets:match_object(?INOTIFY_ETS, #watch{mon=MonitorRef, _='_'}) of
+handle_info({'DOWN', MonRef, process, _Pid, _Info}, State) ->
+    case ets:match_object(?INOTIFY_ETS, #watch{mon=MonRef, _='_'}) of
         [] ->
             {noreply, State};
         [Record] ->

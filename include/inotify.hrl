@@ -23,6 +23,7 @@
                          | dont_follow
                          | mask_add
                          | onlydir.
+
 -type inotify_mask() :: inotify_mask_el() | [inotify_mask_el()].
 
 -record(inotify_event, { filename :: string(),

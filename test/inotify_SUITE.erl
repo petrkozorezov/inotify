@@ -125,4 +125,3 @@ print_received() ->
     after 200 ->
             throw(too_long)
     end.
-

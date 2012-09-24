@@ -15,7 +15,8 @@
 -define(SERVER, ?MODULE). 
 
 -record(state, { server :: pid(),
-                 handle :: function()
+                 handle :: function(),
+                 monref
                }
        ).
 
@@ -24,19 +25,22 @@ start_link(Options) ->
 
 init(Options) ->
     Server = proplists:get_value(server, Options),
-    Callback = case proplists:get_value(callback, Options) of
-                   undefined ->
-                       erlang:error(callback_undefined);
-                   Pid when is_pid(Pid) ->
-                       fun(Event) -> Pid ! {self(), Event} end;
-                   Function when is_function(Function) ->
-                       fun(Event) -> Function(self(), Event) end;
-                   {M,F} when is_atom(M) and is_atom(F) ->
-                       fun(Event) -> erlang:apply(M, F, [self(), Event]) end
-               end,
+    {Callback, MonRef} = form_callback(proplists:get_value(callback, Options)),
     {ok, #state{ server = Server,
-                 handle = Callback }
+                 handle = Callback,
+                 monref = MonRef
+               }
     }.
+
+form_callback({M,F}) when is_atom(M) and is_atom(F) ->
+    {fun(Event) -> erlang:apply(M, F, [self(), Event]) end, undefined};
+form_callback(Fun) when is_function(Fun) ->
+    {fun(Event) -> Fun(self(), Event) end, undefined};
+form_callback(Pid) when is_pid(Pid) ->
+    MonRef = erlang:monitor(process, Pid),
+    {fun(Event) -> Pid ! {self(), Event} end, MonRef};
+form_callback(undefined) ->
+    erlang:error(callback_undefined).
 
 handle_call(_, _From, State) ->
     {reply, {error, unknown_call}, State}.
@@ -46,6 +50,9 @@ handle_cast({Server, Event}, #state{server = Server, handle = Handler} = State) 
     {noreply, State};
 handle_cast(_, State) ->
     {noreply, State}.
+
+handle_info({'DOWN', MonRef, process, _, _}, #state{monref = MonRef} = State) ->
+    {stop, normal, State};
 
 handle_info(_Info, State) ->
     {noreply, State}.

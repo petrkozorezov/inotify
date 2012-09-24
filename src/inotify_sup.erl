@@ -8,7 +8,6 @@
 
 %% API
 -export([start_link/0]).
-
 -export([init/1]).
 
 -define(CHILD(I, Type), {I, {I, start_link, []}, permanent, 5000, Type, [I]}).
@@ -22,4 +21,4 @@ init([]) ->
                  ?CHILD(inotify_server, worker)
                 ],
     
-    {ok, { {one_for_one, 10, 10}, Processes} }.
+    {ok, {{one_for_all, 10, 10}, Processes}}.

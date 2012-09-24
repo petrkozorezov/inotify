@@ -8,7 +8,7 @@
                   stdlib,
                   sasl
                  ]},
-  {mod, { inotify_app, []}},
+  {mod, {inotify_app, []}},
   {env, []}           
 ]}.
 
