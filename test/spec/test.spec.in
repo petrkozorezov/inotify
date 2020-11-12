@@ -1,6 +1,0 @@
-{logdir, "@PATH@/test/logs"}.
-
-{alias, main_app, "@PATH@"}.
-
-{suites, main_app,
- [ inotify_SUITE ]}.

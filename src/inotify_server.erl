@@ -1,11 +1,10 @@
 %%% File    : inotify_server.erl
 %%% Author  : Defnull <define.null@gmail.com>
 %%% Created : Среда, Апрель 11 2012 by Defnull
-%%% Description : 
+%%% Description :
 
 -module(inotify_server).
 -behaviour(gen_server).
--compile({parse_transform, sheriff}).
 
 %% API
 -export([start_link/0,
@@ -18,7 +17,7 @@
 
 -include("inotify.hrl").
 
--define(SERVER, ?MODULE). 
+-define(SERVER, ?MODULE).
 -define(PORT_TIMEOUT, 1000).
 -define(INOTIFY_BIN, "inotify").
 -define(INOTIFY_ETS, inotify_table).
@@ -36,12 +35,7 @@ start_link() ->
 -spec add_watch(file:filename(), inotify_mask(), inotify_handler() | {atom(), atom()} | pid()) ->
                        {ok, pid()} | {error, any()}.
 add_watch(Filename, Mask, Callback) ->
-    case sheriff:check(Mask, inotify_mask) of
-        true ->
-            gen_server:call(?MODULE, {add_watch, Filename, Mask, Callback});
-        false ->
-            {error, badmask}
-    end.     
+    gen_server:call(?MODULE, {add_watch, Filename, Mask, Callback}).
 
 %% @doc Similiar to add_watch but adds linking with watching process.
 -spec add_watch_link(file:filename(), inotify_mask(), inotify_handler() | {atom(), atom()} | pid()) ->
@@ -55,14 +49,14 @@ add_watch_link(Filename, Mask, Callback) ->
             {error, Any}
     end.
 
--spec add_watch_impl(file:filename(), inotify_mask(), inotify_handler(), istate()) -> {reply, any(), istate()}. 
+-spec add_watch_impl(file:filename(), inotify_mask(), inotify_handler(), istate()) -> {reply, any(), istate()}.
 add_watch_impl(Filename, Mask, Callback, #state{port=Port, mq=MQ} = State) ->
     try
         {MQ1, FD} = handle_free_instance(Filename, MQ, Port),
         case add_to_watch_instance(Port, FD, Filename, Mask) of
             {ok, WD} ->
                 Child = add_handler({FD,WD}, Callback),
-                
+
                 Record = #watch{handler = Child,
                                 mon = erlang:monitor(process, Child),
                                 inotify_id = {FD,WD},
@@ -75,8 +69,8 @@ add_watch_impl(Filename, Mask, Callback, #state{port=Port, mq=MQ} = State) ->
             {error, Any} ->
                 {reply, {error, Any}, State#state{mq = MQ1}}
         end
-    catch _:Error ->
-            log(Error),
+    catch _:Error:Stacktrace ->
+            log(Error, Stacktrace),
             {reply, {error, Error}, State}
     end.
 
@@ -175,7 +169,7 @@ search_child(Supervisor, ChildId) ->
             exit({no_child, ChildId, Supervisor})
     end.
 
-inotify_bin() ->       
+inotify_bin() ->
      filename:join([code:priv_dir(inotify), ?INOTIFY_BIN]).
 
 %%%===================================================================
@@ -206,7 +200,7 @@ handle_info({Port, {data, Msg}}, #state{port = Port} = State) ->
 
 handle_info({Port, {exit_status, Status}}, #state{port = Port} = State) ->
     %% TODO Do we need to restart port here?
-    log({port_terminated, exit_status, Status}),
+    log({port_terminated, exit_status, Status}, []),
     {stop, {port_terminated, exit_status, Status}, State#state{port = undefined}};
 
 handle_info({'DOWN', MonRef, process, _Pid, _Info}, State) ->
@@ -262,15 +256,15 @@ sync_call_command(Port, Msg) ->
         receive
             %% Tuple, which contains only two elements signals that it is command request
             %% http://www.erlang.org/doc/apps/erts/erl_ext_dist.html  VERSION(131) + SMALL_TUPLE_EXT(104,2)
-            {Port, {data, Data = <<131,104,2,_/binary>>}} -> 
+            {Port, {data, Data = <<131,104,2,_/binary>>}} ->
                 binary_to_term(Data)
-        after ?PORT_TIMEOUT -> 
+        after ?PORT_TIMEOUT ->
                 throw(port_timeout)
         end
-    catch 
-        _:Error -> 
+    catch
+        _:Error ->
             throw({port_failed, {Error, Port, Msg}})
     end.
 
-log(Msg) ->
-    error_logger:error_msg("~p~nStacktrace:~p~n", [Msg, erlang:get_stacktrace()]).
+log(Msg, Stacktrace) ->
+    error_logger:error_msg("~p~nStacktrace:~p~n", [Msg, Stacktrace]).
